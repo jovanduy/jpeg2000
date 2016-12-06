@@ -2,7 +2,13 @@
 # JPEG2000 Image Compression script
 ###################################
 
-image = "data/image.jpg"
+from PIL import Image
+from pickle import dump
+
+file_path = "data/image.jpg"
+
+def init_image(path):
+    return Image.open(path)
 
 def image_tiling(img):
     # tile image
@@ -26,4 +32,5 @@ def entropy_coding(img):
 def bit_stream_formation(img):
     # idk if we need this or what it is
 
-
+if __name__ == '__main__':
+    img = init_image(file_path)
