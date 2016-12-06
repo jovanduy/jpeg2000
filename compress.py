@@ -12,9 +12,11 @@ class JPEG2000(object):
     def __init__(self):   
         self.file_path = "data/image.jpg"
         self.debug = True
-        
+        self.tiles = []
+
     def init_image(self, path):
-        return cv2.imread(path)
+        img = cv2.imread(path)
+        return img
 
     def image_tiling(self, img, tile_size = 8):
         # tile image
@@ -34,17 +36,32 @@ class JPEG2000(object):
                 print type(tile)
                 print tile.shape
                 counter += 1
+                self.tiles.append(tile)
+
                 if self.debug:
                     cv2.imshow("test_image" + str(counter), tile)
                     cv2.waitKey(0)
 
     def dc_level_shift(self, img):
         # dc level shifting
+
         pass
     
     def component_transformation(self, img):
         # component transformation:
         # split image into Y, Cb, Cr
+        for tile in self.tiles:
+            (h, w, _) = tile.shape
+            tile = cv2.cvtColor(tile, cv2.COLOR_BGR2RGB)
+            tile = Image.fromarray(tile, 'RGB')
+            for i in range(0, w):    # for every pixel:
+                for j in range(0, h):
+                    img.getpixel(i, j)
+
+
+        # img.save('my.jpg')
+        # img.show()        
+        # componentMatrix = [[],[],[]]
         pass
 
     def dwt(self, img):
@@ -70,7 +87,7 @@ class JPEG2000(object):
 
     def run(self):
         img = self.init_image(self.file_path)
-        self.image_tiling(img, tile_size = 300)
+        # self.image_tiling(img, tile_size = 300)
 
 if __name__ == '__main__':
     JPEG2000().run()
