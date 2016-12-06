@@ -4,33 +4,73 @@
 
 from PIL import Image
 from pickle import dump
+import numpy as np
+import cv2
 
-file_path = "data/image.jpg"
+class JPEG2000(object):
+    """compression algorithm, jpeg2000"""
+    def __init__(self):   
+        self.file_path = "data/image.jpg"
+        self.debug = True
+        
+    def init_image(self, path):
+        return cv2.imread(path)
 
-def init_image(path):
-    return Image.open(path)
+    def image_tiling(self, img, tile_size = 8):
+        # tile image
+        (h, w, _) = img.shape
+        print img.shape
+        counter = 0
+        
+        left_over = w%tile_size
+        w += (tile_size - left_over)
+        left_over = h%tile_size
+        h += (tile_size - left_over)
 
-def image_tiling(img):
-    # tile image
+        for i in range(0, w, tile_size):    # for every pixel:
+            for j in range(0, h, tile_size):
+                print j, i
+                tile = img[j:j + tile_size, i:i + tile_size]
+                print type(tile)
+                print tile.shape
+                counter += 1
+                if self.debug:
+                    cv2.imshow("test_image" + str(counter), tile)
+                    cv2.waitKey(0)
 
-def dc_level_shift(img):
-    # dc level shifting
+    def dc_level_shift(self, img):
+        # dc level shifting
+        pass
+    
+    def component_transformation(self, img):
+        # component transformation:
+        # split image into Y, Cb, Cr
+        pass
 
-def component_transformation(img):
-    # component transformation:
-    # split image into Y, Cb, Cr
+    def dwt(self, img):
+        # do the mathmagic dwt
+        pass
 
-def dwt(img):
-    # do the mathmagic dwt
+    def quantization(self, img):
+        # quantization
+        pass
 
-def quantization(img):
-    # quantization
+    def entropy_coding(self, img):
+        # encode image
+        pass
 
-def entropy_coding(img):
-    # encode image
+    def bit_stream_formation(self, img):
+        # idk if we need this or what it is
+        pass
 
-def bit_stream_formation(img):
-    # idk if we need this or what it is
+    def forward():
+        pass
+    def backward():
+        pass
+
+    def run(self):
+        img = self.init_image(self.file_path)
+        self.image_tiling(img, tile_size = 300)
 
 if __name__ == '__main__':
-    img = init_image(file_path)
+    JPEG2000().run()
