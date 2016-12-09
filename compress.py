@@ -22,6 +22,7 @@ class JPEG2000(object):
         self.tiles = []
         self.component_transformation_matrix = np.array([[0.2999, 0.587, 0.114],
             [-0.16875, -0.33126, 0.5],[0.5, -0.41869, -0.08131]])
+        self.inverse_component_transformation_matrix = ([[1.0, 0, 1.402], [1.0, -0.34413, -0.71414], [1.0, 1.772, 0]])
         self.tile_size = 300
 
     def init_image(self, path):
@@ -94,16 +95,38 @@ class JPEG2000(object):
             #     # print tile.y_tile[0]
             #     cv2.waitKey(0)
 
+    def inverse_component_transformation(self):
+        # component transformation:
+        # split image into Y, Cb, Cr
+
+        for tile in self.tiles:
+            (h, w, _) = tile.tile_image.shape
+            tile.recovered_tile = np.empty_like(tile.tile_image)
+
+            for i in range(0, w):    # for every pixel:
+                for j in range(0, h):
+                    y, Cb, Cr = tile.recovered_y_tile[j][i], tile.recovered_Cb_tile[j][i], tile.recovered_Cr_tile[j][i]
+                    
+                    yCbCr_array = np.array([y, Cb, Cr])
+
+                    rgb_array = np.matmul(self.inverse_component_transformation_matrix, yCbCr_array)
+                    tile.recovered_tile[j][i] = rgb_array
+            # break
+            if self.debug:
+                rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
+                cv2.imshow("tile.recovered_tile", rgb_tile)
+                cv2.waitKey(0)
+
     def dwt(self):
         # do the mathmagic dwt
         for tile in self.tiles:
-            print "before dwt tile.y_tile.shape: ", tile.y_tile.shape
+            # print "before dwt tile.y_tile.shape: ", tile.y_tile.shape
             tile.y_coeffs = pywt.dwt2(tile.y_tile, 'haar') #cA, (cH, cV, cD) 
             cA, (cH, cV, cD) = tile.y_coeffs
-            print type(cA)
-            print cA.shape
-            tile.Cr_coeffs = pywt.dwt2(tile.Cr_tile, 'haar')
+            # print type(cA)
+            # print cA.shape
             tile.Cb_coeffs = pywt.dwt2(tile.Cb_tile, 'haar')
+            tile.Cr_coeffs = pywt.dwt2(tile.Cr_tile, 'haar')
 
         # tile = self.tiles[0]
         # print type(tile.y_coeffs[0])
@@ -112,8 +135,19 @@ class JPEG2000(object):
         # cv2.imshow("y_tile", tile.y_coeffs[0])
         # cv2.waitKey(0)
     def idwt(self):
+        for tile in self.tiles:
+            tile.recovered_y_tile = pywt.idwt2(tile.y_coeffs, 'haar')  
+            tile.recovered_Cb_tile = pywt.idwt2(tile.Cb_coeffs, 'haar')  
+            tile.recovered_Cr_tile = pywt.idwt2(tile.Cr_coeffs, 'haar')  
+            # break
+        # print tile.recovered_y_tile.shape
+        # print tile.recovered_Cb_tile.shape
+        # print tile.recovered_Cr_tile.shape
+        # tile = self.tiles[0] 
+        # print tile.y_tile[0]
+        # print tile.recovered_y_tile[0]
 
-        
+
     def quantization(self, img):
         # quantization
         pass
@@ -133,10 +167,12 @@ class JPEG2000(object):
         self.dwt()
 
     def backward(self):
-        pass
+        self.idwt()
+        self.inverse_component_transformation()
 
     def run(self):
         self.forward()
+        self.backward()
 
 
 if __name__ == '__main__':
