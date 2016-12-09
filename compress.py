@@ -70,50 +70,50 @@ class JPEG2000(object):
             rgb_tile = cv2.cvtColor(tile.tile_image, cv2.COLOR_BGR2RGB)
             Image_tile = Image.fromarray(rgb_tile, 'RGB')
             # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.empty_like(tile.tile_image), np.empty_like(tile.tile_image), np.empty_like(tile.tile_image)
-            # print "tile.tile_image[0] ", tile.tile_image[0]
-            # print "tile.y_tile[0] ", tile.y_tile[0]
-            # cv2.imshow("y_tile", tile.y_tile)
-            # cv2.waitKey(0)
 
-            tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image), np.zeros(tile.tile_image)
-            # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros((h, w)), np.zeros((h, w)), np.zeros((h, w))
-            # (w, h, _) = tile.y_tile.shape
-            # print "np.squeeze(tile.y_tile).shape ", np.squeeze(tile.y_tile).shape
-            # tile.y_tile.reshape(w, h)
-            # tile.Cb_tile.reshape(w, h)
-            # tile.Cr_tile.reshape(w, h)
+            # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image), np.zeros(tile.tile_image)
+            tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros((h, w)), np.zeros((h, w)), np.zeros((h, w))
+
 
             for i in range(0, w):    # for every pixel:
                 for j in range(0, h):
                     r, g, b = Image_tile.getpixel((i, j))
                     rgb_array = np.array([r, g, b])
                     yCbCr_array = np.matmul(self.component_transformation_matrix, rgb_array)
-                    tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = yCbCr_array[0], yCbCr_array[1], yCbCr_array[2]
+                    # y = .299 * r + .587 * g + .114 * b 
+                    # Cb = 0 
+                    # Cr = 0
+                    tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(yCbCr_array[0]), int(yCbCr_array[1]), int(yCbCr_array[2])
+                    # tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(y), int(Cb), int(Cr)
             
-            if self.debug:
-                print tile.y_tile.shape
-                cv2.imshow("y_tile", tile.y_tile)
-                cv2.imshow("Cb_tile", tile.Cb_tile)
-                cv2.imshow("Cr_tile", tile.Cr_tile)
-                cv2.waitKey(0)
+            # if self.debug:
+            #     print tile.y_tile.shape
+            #     cv2.imshow("y_tile", tile.y_tile)
+            #     cv2.imshow("Cb_tile", tile.Cb_tile)
+            #     cv2.imshow("Cr_tile", tile.Cr_tile)
+            #     # print tile.y_tile[0]
+            #     cv2.waitKey(0)
 
     def dwt(self):
         # do the mathmagic dwt
         for tile in self.tiles:
-            print tile.y_tile.shape
+            print "before dwt tile.y_tile.shape: ", tile.y_tile.shape
             tile.y_coeffs = pywt.dwt2(tile.y_tile, 'haar') #cA, (cH, cV, cD) 
             cA, (cH, cV, cD) = tile.y_coeffs
             print type(cA)
             print cA.shape
-            # tile.Cr_coeffs = pywt.dwt2(tile.Cr_tile, 'haar')
-            # tile.Cb_coeffs = pywt.dwt2(tile.Cb_tile, 'haar')
-            break
-        tile = self.tiles[0]
-        print type(tile.y_coeffs[0])
-        print tile.y_coeffs[0].shape
-        cv2.imshow("y_tile", tile.y_coeffs[0])
-        cv2.waitKey(0)
+            tile.Cr_coeffs = pywt.dwt2(tile.Cr_tile, 'haar')
+            tile.Cb_coeffs = pywt.dwt2(tile.Cb_tile, 'haar')
 
+        # tile = self.tiles[0]
+        # print type(tile.y_coeffs[0])
+        # print tile.y_coeffs[0].shape
+        # print tile.y_coeffs[0]
+        # cv2.imshow("y_tile", tile.y_coeffs[0])
+        # cv2.waitKey(0)
+    def idwt(self):
+
+        
     def quantization(self, img):
         # quantization
         pass
@@ -130,7 +130,7 @@ class JPEG2000(object):
         img = self.init_image(self.file_path)
         self.image_tiling(img)
         self.component_transformation()
-        # self.dwt()
+        self.dwt()
 
     def backward(self):
         pass
