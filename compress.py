@@ -6,7 +6,7 @@ from PIL import Image
 from pickle import dump
 import numpy as np
 import cv2
-import pywt
+# import pywt
 import math
 
 class Tile(object):
@@ -26,6 +26,8 @@ class JPEG2000(object):
         self.i_component_transformation_matrix = ([[1.0, 0, 1.402], [1.0, -0.34413, -0.71414], [1.0, 1.772, 0]])
         self.tile_size = 300
         self.step = 30
+        self.h0 = [-0.010597401784997278, 0.032883011666982945, 0.030841381835986965, -0.18703481171888114, -0.02798376941698385, 0.6308807679295904, 0.7148465705525415, 0.23037781330885523];
+        self.h1 = [-0.2303778133, 0.7148465706, -0.6308807679, -0.0279837694, 0.1870348117, 0.0308413818, -0.0328830117, -0.0105974018]
 
     def init_image(self, path):
         img = cv2.imread(path)
@@ -114,10 +116,80 @@ class JPEG2000(object):
                     rgb_array = np.matmul(self.i_component_transformation_matrix, yCbCr_array)
                     tile.recovered_tile[j][i] = rgb_array
             # break
-            if self.debug:
-                rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
-                cv2.imshow("tile.recovered_tile", rgb_tile)
-                cv2.waitKey(0)
+            # if self.debug:
+            #     rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
+            #     cv2.imshow("tile.recovered_tile", rgb_tile)
+            #     cv2.waitKey(0)
+
+    def DWT(self, level=1):
+        for tile in self.tiles:
+            tile.y_coeffs  = self.DWT_helper(tile.y_tile, level)
+            tile.Cb_coeffs = self.DWT_helper(tile.Cb_tile, level)
+            tile.Cr_coeffs = self.DWT_helper(tile.Cr_tile, level)
+            break
+        if self.debug:
+            tile = self.tiles[0]
+            cv2.imshow("tile.ycoeff", tile.y_coeffs[3])
+            cv2.waitKey(0)
+
+    def DWT_helper(self, img, level):
+        if level == 0:
+            return img
+        (h, w) = img.shape
+        highpass = []
+        lowpass = []
+        highpass_down = []
+        lowpass_down = []
+        for row in range(h):
+            # convolve and downsample the rows
+            print img[row,:].shape
+            highpass.append(np.convolve(img[row,:], self.h1[::-1]))
+            lowpass.append(np.convolve(img[row,:], self.h0[::-1]))
+
+            highpass_down.append(highpass[row][::2])
+            lowpass_down.append(lowpass[row][::2])
+        highpass = np.asarray(highpass)
+        lowpass = np.asarray(lowpass)
+
+        (h, w) = highpass.shape
+        hh = []
+        hl = []
+        ll = []
+        lh = []
+
+        hh_down = []
+        hl_down = []
+        lh_down = []
+        ll_down = []
+
+        for col in range(w):
+            # second pass of filtering
+            hh.append(np.convolve(highpass[:,col], self.h1[::-1]))
+            hl.append(np.convolve(highpass[:,col], self.h0[::-1]))
+            lh.append(np.convolve(lowpass[:,col], self.h1[::-1]))
+            ll.append(np.convolve(lowpass[:,col], self.h0[::-1]))
+
+        hh = np.asarray(hh)
+        hl = np.asarray(hl)
+        lh = np.asarray(lh)
+        ll = np.asarray(ll)
+
+        for col in range(w):
+            hh_down.append(hh[:, col][::2])
+            hl_down.append(hl[:, col][::2])
+            lh_down.append(lh[:, col][::2])
+            ll_down.append(ll[:, col][::2])
+
+        hh_down = np.transpose(np.asarray(hh_down))
+        hl_down = np.transpose(np.asarray(hl_down))
+        lh_down = np.transpose(np.asarray(lh_down))
+        ll_down = np.transpose(np.asarray(ll_down))
+
+        if (level > 1):
+            hh_down, hl_down, lh_down, ll_down = DWT_helper(ll_down, level-1)
+
+        return (hh_down, hl_down, lh_down, ll_down)
+
 
     def dwt(self):
         # do the mathmagic dwt
@@ -137,6 +209,7 @@ class JPEG2000(object):
         # print tile.y_coeffs[0]
         # cv2.imshow("y_tile", tile.y_coeffs[0])
         # cv2.waitKey(0)
+
     def idwt(self):
         for tile in self.tiles:
             tile.recovered_y_tile = pywt.idwt2(tile.recovered_y_coeffs, 'haar')  
@@ -214,8 +287,8 @@ class JPEG2000(object):
         img = self.init_image(self.file_path)
         self.image_tiling(img)
         self.component_transformation()
-        self.dwt()
-        self.quantization()
+        self.DWT()
+        # self.quantization()
 
     def backward(self):
         self.i_quantization()
@@ -224,7 +297,7 @@ class JPEG2000(object):
 
     def run(self):
         self.forward()
-        self.backward()
+        # self.backward()
 
 
 if __name__ == '__main__':
