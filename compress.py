@@ -242,6 +242,75 @@ class JPEG2000(object):
         return (hh_down, hl_down, lh_down, ll_down)
 
     def iDWT_helper(self, img, level):
+        i_hh = self.img[0]
+        i_hl = self.img[1]
+        i_lh = self.img[2]
+        i_ll = self.img[3]
+        i_hh_up = []
+        i_hl_up = []
+        i_lh_up = []
+        i_ll_up = []
+
+        (h, w) = i_hh.shape
+
+        highpass = []
+        lowpass = []
+
+        for row in range(h):
+            # upsampling
+            i_hh_up.append(i_hh[row])
+            i_hh_up.append(np.zeros(w))
+
+            i_hl_up.append(i_hl[row])
+            i_hl_up.append(np.zeros(w))
+
+            i_lh_up.append(i_lh[row])
+            i_lh_up.append(np.zeros(w))
+
+            i_ll_up.append(i_ll[row])
+            i_ll_up.append(np.zeros(w))
+
+        # convolve columns and upsample the rows, combine the new N x N/2 images  
+
+        for col in range(w):
+            # convolve columns
+            highpass.append(np.convolve(i_hh_up[col], self.h1) + np.convolve(i_hl_up[col], self.h0))
+            lowpass.append(np.convolve(i_lh_up[col], self.h1) + np.convolve(i_ll_up[col], self.h0))
+
+        highpass = np.asarray(highpass)
+        lowpass = np.asarray(lowpass)
+
+        print "highpass.shape: ", highpass.shape
+        print "lowpass.shape: ", lowpass.shape
+
+        highpass_up = []
+        lowpass_up = []
+
+        for col in range(w):
+            # upsampling second stage
+            highpass_up.append(highpass[row])
+            highpass_up.append(np.zeros(w))
+
+            lowpass_up.append(lowpass[row])
+            lowpass_up.append(np.zeros(w))
+
+        highpass_up = np.asarray(highpass_up)
+        lowpass_up = np.asarray(lowpass_up)
+
+        print "highpass_up.shape: ", highpass_up.shape
+        print "lowpass_up.shape: ", lowpass_up.shape
+
+        (h, w) = highpass_up.shape
+
+        original_img = []
+
+        for col in range(h):
+            # second pass convolve rows and upsample columns
+            original_img.append(np.convolve(highpass_up[col], self.h1) + np.convolve(lowpass_up[col], self.h0))
+
+
+        return original_img
+
 
     def dwt(self):
         # do the mathmagic dwt
@@ -347,13 +416,14 @@ class JPEG2000(object):
         # self.quantization()
 
     def backward(self):
-        self.i_quantization()
-        self.idwt()
+        #self.i_quantization()
+        #self.idwt()
+        self.iDWT()
         self.i_component_transformation()
 
     def run(self):
         self.forward()
-        # self.backward()
+        self.backward()
 
 
 if __name__ == '__main__':
