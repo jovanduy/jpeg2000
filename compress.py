@@ -6,7 +6,7 @@ from PIL import Image
 from pickle import dump
 import numpy as np
 import cv2
-# import pywt
+import pywt
 import math
 
 class Tile(object):
@@ -26,8 +26,11 @@ class JPEG2000(object):
         self.i_component_transformation_matrix = ([[1.0, 0, 1.402], [1.0, -0.34413, -0.71414], [1.0, 1.772, 0]])
         self.tile_size = 300
         self.step = 30
-        self.h0 = [-0.010597401784997278, 0.032883011666982945, 0.030841381835986965, -0.18703481171888114, -0.02798376941698385, 0.6308807679295904, 0.7148465705525415, 0.23037781330885523];
-        self.h1 = [-0.2303778133, 0.7148465706, -0.6308807679, -0.0279837694, 0.1870348117, 0.0308413818, -0.0328830117, -0.0105974018]
+        
+        self.h0 = [math.sqrt(0.5), math.sqrt(0.5)]
+        self.h1 = [math.sqrt(0.5),  - math.sqrt(0.5)]
+        # self.h0 = [-0.010597401784997278, 0.032883011666982945, 0.030841381835986965, -0.18703481171888114, -0.02798376941698385, 0.6308807679295904, 0.7148465705525415, 0.23037781330885523];
+        # self.h1 = [-0.2303778133, 0.7148465706, -0.6308807679, -0.0279837694, 0.1870348117, 0.0308413818, -0.0328830117, -0.0105974018]
 
     def init_image(self, path):
         img = cv2.imread(path)
@@ -121,37 +124,73 @@ class JPEG2000(object):
             #     cv2.imshow("tile.recovered_tile", rgb_tile)
             #     cv2.waitKey(0)
 
-    def DWT(self, level=1):
+    def DWT(self, level = 1):
         for tile in self.tiles:
             tile.y_coeffs  = self.DWT_helper(tile.y_tile, level)
             tile.Cb_coeffs = self.DWT_helper(tile.Cb_tile, level)
             tile.Cr_coeffs = self.DWT_helper(tile.Cr_tile, level)
             break
+
         if self.debug:
             tile = self.tiles[0]
-            cv2.imshow("tile.ycoeff", tile.y_coeffs[3])
+            print "tile.y_coeffs[3].shape: ", tile.y_coeffs[3].shape
+            cv2.imshow("tile.y_coeffs[0]", tile.y_coeffs[0])
+            cv2.imshow("tile.y_coeffs[1]", tile.y_coeffs[1])
+            cv2.imshow("tile.y_coeffs[2]", tile.y_coeffs[2])
+            cv2.imshow("tile.y_coeffs[3]", tile.y_coeffs[3])
+            from PIL import Image
+            img = Image.fromarray(tile.y_coeffs[3], 'RGB')
+            img.save('my.png')
+            img.show()
             cv2.waitKey(0)
 
+    def iDWT(self, level = 1):
+
+        for tile in self.tiles:
+            tile.recovered_y_tile  = self.iDWT_helper(tile.recovered_y_coeffs, level)
+            tile.recovered_Cb_tile = self.iDWT_helper(tile.recovered_Cb_coeffs, level)
+            tile.recovered_Cr_tile = self.iDWT_helper(tile.recovered_Cr_coeffs, level)
+            break
+        if self.debug:
+            tile = self.tiles[0]        
+            print tile.recovered_y_tile.shape
+            print tile.recovered_Cb_tile.shape
+            print tile.recovered_Cr_tile.shape
+            cv2.imshow("tile.recovered_y_tile", tile.recovered_y_tile)
+        
+
     def DWT_helper(self, img, level):
-        if level == 0:
-            return img
+
         (h, w) = img.shape
+        
         highpass = []
         lowpass = []
         highpass_down = []
         lowpass_down = []
+
         for row in range(h):
             # convolve and downsample the rows
-            print img[row,:].shape
             highpass.append(np.convolve(img[row,:], self.h1[::-1]))
             lowpass.append(np.convolve(img[row,:], self.h0[::-1]))
 
-            highpass_down.append(highpass[row][::2])
-            lowpass_down.append(lowpass[row][::2])
         highpass = np.asarray(highpass)
         lowpass = np.asarray(lowpass)
 
-        (h, w) = highpass.shape
+        print "highpass.shape: ", highpass.shape
+        print "lowpass.shape: ", lowpass.shape
+        
+        for row in range(h):
+            highpass_down.append(highpass[row][::2])
+            lowpass_down.append(lowpass[row][::2])
+
+
+        highpass_down = np.asarray(highpass_down)
+        lowpass_down = np.asarray(lowpass_down)
+
+        print "highpass_down.shape: ", highpass_down.shape
+        print "lowpass_down.shape: ", lowpass_down.shape
+
+        (h, w) = highpass_down.shape
         hh = []
         hl = []
         ll = []
@@ -164,15 +203,22 @@ class JPEG2000(object):
 
         for col in range(w):
             # second pass of filtering
-            hh.append(np.convolve(highpass[:,col], self.h1[::-1]))
-            hl.append(np.convolve(highpass[:,col], self.h0[::-1]))
-            lh.append(np.convolve(lowpass[:,col], self.h1[::-1]))
-            ll.append(np.convolve(lowpass[:,col], self.h0[::-1]))
+            hh.append(np.convolve(highpass_down[:,col], self.h1[::-1]))
+            hl.append(np.convolve(highpass_down[:,col], self.h0[::-1]))
+            lh.append(np.convolve(lowpass_down[:,col], self.h1[::-1]))
+            ll.append(np.convolve(lowpass_down[:,col], self.h0[::-1]))
 
-        hh = np.asarray(hh)
-        hl = np.asarray(hl)
-        lh = np.asarray(lh)
-        ll = np.asarray(ll)
+        hh = np.transpose(np.asarray(hh))
+        hl = np.transpose(np.asarray(hl))
+        lh = np.transpose(np.asarray(lh))
+        ll = np.transpose(np.asarray(ll))
+
+
+        print "hh.shape: ", hh.shape
+        print "hl.shape: ", hl.shape
+        print "lh.shape: ", lh.shape
+        print "ll.shape: ", ll.shape
+
 
         for col in range(w):
             hh_down.append(hh[:, col][::2])
@@ -185,11 +231,17 @@ class JPEG2000(object):
         lh_down = np.transpose(np.asarray(lh_down))
         ll_down = np.transpose(np.asarray(ll_down))
 
+        print "hh_down.shape: ", hh_down.shape
+        print "hl_down.shape: ", hl_down.shape
+        print "lh_down.shape: ", lh_down.shape
+        print "ll_down.shape: ", ll_down.shape
+
         if (level > 1):
             hh_down, hl_down, lh_down, ll_down = DWT_helper(ll_down, level-1)
 
         return (hh_down, hl_down, lh_down, ll_down)
 
+    def iDWT_helper(self, img, level):
 
     def dwt(self):
         # do the mathmagic dwt
@@ -203,12 +255,15 @@ class JPEG2000(object):
             # print cA.shape
 
 
-        # tile = self.tiles[0]
-        # print type(tile.y_coeffs[0])
-        # print tile.y_coeffs[0].shape
-        # print tile.y_coeffs[0]
-        # cv2.imshow("y_tile", tile.y_coeffs[0])
-        # cv2.waitKey(0)
+        tile = self.tiles[0]
+        print type(tile.y_coeffs[0])
+        print tile.y_coeffs[0].shape
+        cv2.imshow("tile.y_coeffs[0]", tile.y_coeffs[0])
+        cv2.imshow("tile.y_coeffs[1][0]", tile.y_coeffs[1][0])
+        cv2.imshow("tile.y_coeffs[1][1]", tile.y_coeffs[1][1])
+        cv2.imshow("tile.y_coeffs[1][2]", tile.y_coeffs[1][2])
+
+        cv2.waitKey(0)
 
     def idwt(self):
         for tile in self.tiles:
@@ -287,6 +342,7 @@ class JPEG2000(object):
         img = self.init_image(self.file_path)
         self.image_tiling(img)
         self.component_transformation()
+        # self.dwt()
         self.DWT()
         # self.quantization()
 
