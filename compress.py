@@ -60,13 +60,13 @@ class JPEG2000(object):
                 counter += 1
                 self.tiles.append(tile)
 
-                # if self.debug:
-                #     cv2.imshow("test_image" + str(counter), tile.tile_image)
-                #     cv2.waitKey(0)
+                if self.debug:
+                    cv2.imshow("test_image" + str(counter), tile.tile_image)
+                    cv2.waitKey(0)
+
 
     def dc_level_shift(self, img):
         # dc level shifting
-
         pass
     
     def component_transformation(self):
@@ -94,13 +94,14 @@ class JPEG2000(object):
                     tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(yCbCr_array[0]), int(yCbCr_array[1]), int(yCbCr_array[2])
                     # tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(y), int(Cb), int(Cr)
             
-            # if self.debug:
-            #     print tile.y_tile.shape
-            #     cv2.imshow("y_tile", tile.y_tile)
-            #     cv2.imshow("Cb_tile", tile.Cb_tile)
-            #     cv2.imshow("Cr_tile", tile.Cr_tile)
-            #     # print tile.y_tile[0]
-            #     cv2.waitKey(0)
+        if self.debug:
+            tile = self.tiles[0]
+            print tile.y_tile.shape
+            cv2.imshow("y_tile", tile.y_tile)
+            cv2.imshow("Cb_tile", tile.Cb_tile)
+            cv2.imshow("Cr_tile", tile.Cr_tile)
+            # print tile.y_tile[0]
+            cv2.waitKey(0)
 
     def i_component_transformation(self):
         # component transformation:
@@ -119,10 +120,11 @@ class JPEG2000(object):
                     rgb_array = np.matmul(self.i_component_transformation_matrix, yCbCr_array)
                     tile.recovered_tile[j][i] = rgb_array
             # break
-            # if self.debug:
-            #     rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
-            #     cv2.imshow("tile.recovered_tile", rgb_tile)
-            #     cv2.waitKey(0)
+        if self.debug:
+            tile = self.tiles[0]
+            rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
+            cv2.imshow("tile.recovered_tile", rgb_tile)
+            cv2.waitKey(0)
 
     def DWT(self, level = 1):
         for tile in self.tiles:
@@ -138,11 +140,11 @@ class JPEG2000(object):
             cv2.imshow("tile.y_coeffs[1]", tile.y_coeffs[1])
             cv2.imshow("tile.y_coeffs[2]", tile.y_coeffs[2])
             cv2.imshow("tile.y_coeffs[3]", tile.y_coeffs[3])
-            from PIL import Image
-            img = Image.fromarray(tile.y_coeffs[3], 'RGB')
-            img.save('my.png')
-            img.show()
-            cv2.waitKey(0)
+            # from PIL import Image
+            # img = Image.fromarray(tile.y_coeffs[3], 'RGB')
+            # img.save('my.png')
+            # img.show()
+            # cv2.waitKey(0)
 
     def iDWT(self, level = 1):
 
@@ -411,8 +413,8 @@ class JPEG2000(object):
         img = self.init_image(self.file_path)
         self.image_tiling(img)
         self.component_transformation()
-        # self.dwt()
-        self.DWT()
+        self.dwt()
+        # self.DWT()
         # self.quantization()
 
     def backward(self):
@@ -423,7 +425,7 @@ class JPEG2000(object):
 
     def run(self):
         self.forward()
-        self.backward()
+        # self.backward()
 
 
 if __name__ == '__main__':
