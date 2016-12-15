@@ -60,9 +60,9 @@ class JPEG2000(object):
                 counter += 1
                 self.tiles.append(tile)
 
-                if self.debug:
-                    cv2.imshow("test_image" + str(counter), tile.tile_image)
-                    cv2.waitKey(0)
+                # if self.debug:
+                #     cv2.imshow("test_image" + str(counter), tile.tile_image)
+                #     cv2.waitKey(0)
 
 
     def dc_level_shift(self, img):
@@ -94,14 +94,14 @@ class JPEG2000(object):
                     tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(yCbCr_array[0]), int(yCbCr_array[1]), int(yCbCr_array[2])
                     # tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(y), int(Cb), int(Cr)
             
-        if self.debug:
-            tile = self.tiles[0]
-            print tile.y_tile.shape
-            cv2.imshow("y_tile", tile.y_tile)
-            cv2.imshow("Cb_tile", tile.Cb_tile)
-            cv2.imshow("Cr_tile", tile.Cr_tile)
-            # print tile.y_tile[0]
-            cv2.waitKey(0)
+        # if self.debug:
+        #     tile = self.tiles[0]
+        #     print tile.y_tile.shape
+        #     cv2.imshow("y_tile", tile.y_tile)
+        #     cv2.imshow("Cb_tile", tile.Cb_tile)
+        #     cv2.imshow("Cr_tile", tile.Cr_tile)
+        #     # print tile.y_tile[0]
+        #     cv2.waitKey(0)
 
     def i_component_transformation(self):
         # component transformation:
@@ -109,7 +109,11 @@ class JPEG2000(object):
 
         for tile in self.tiles:
             (h, w, _) = tile.tile_image.shape
+            print "tile.tile_image.shape: ",  tile.tile_image.shape
+            # (h, w) = tile.recovered_y_tile.shape
+
             tile.recovered_tile = np.empty_like(tile.tile_image)
+
 
             for i in range(0, w):    # for every pixel:
                 for j in range(0, h):
@@ -120,22 +124,26 @@ class JPEG2000(object):
                     rgb_array = np.matmul(self.i_component_transformation_matrix, yCbCr_array)
                     tile.recovered_tile[j][i] = rgb_array
             # break
-        if self.debug:
-            tile = self.tiles[0]
-            rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
-            cv2.imshow("tile.recovered_tile", rgb_tile)
-            cv2.waitKey(0)
+                
+            if self.debug:
+                rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
+                print "rgb_tile.shape: ", rgb_tile.shape
+                cv2.imshow("tile.recovered_tile", rgb_tile)
+                cv2.waitKey(0)
+
+
 
     def DWT(self, level = 1):
         for tile in self.tiles:
             tile.y_coeffs  = self.DWT_helper(tile.y_tile, level)
             tile.Cb_coeffs = self.DWT_helper(tile.Cb_tile, level)
             tile.Cr_coeffs = self.DWT_helper(tile.Cr_tile, level)
-            break
+
+            # break
 
         if self.debug:
             tile = self.tiles[0]
-            print "tile.y_coeffs[3].shape: ", tile.y_coeffs[3].shape
+            # print "tile.y_coeffs[3].shape: ", tile.y_coeffs[3].shape
             cv2.imshow("tile.y_coeffs[0]", tile.y_coeffs[0])
             cv2.imshow("tile.y_coeffs[1]", tile.y_coeffs[1])
             cv2.imshow("tile.y_coeffs[2]", tile.y_coeffs[2])
@@ -149,22 +157,24 @@ class JPEG2000(object):
     def iDWT(self, level = 1):
 
         for tile in self.tiles:
-            tile.recovered_y_tile  = self.iDWT_helper(tile.recovered_y_coeffs, level)
-            tile.recovered_Cb_tile = self.iDWT_helper(tile.recovered_Cb_coeffs, level)
-            tile.recovered_Cr_tile = self.iDWT_helper(tile.recovered_Cr_coeffs, level)
-            break
+            tile.recovered_y_tile  = self.iDWT_helper(tile.y_coeffs, level)
+            tile.recovered_Cb_tile = self.iDWT_helper(tile.Cb_coeffs, level)
+            tile.recovered_Cr_tile = self.iDWT_helper(tile.Cr_coeffs, level)
+            
+            # break
+
         if self.debug:
             tile = self.tiles[0]        
-            print tile.recovered_y_tile.shape
-            print tile.recovered_Cb_tile.shape
-            print tile.recovered_Cr_tile.shape
+            print "tile.recovered_y_tile.shape: ", tile.recovered_y_tile.shape
+            print "tile.recovered_Cb_tile.shape: ", tile.recovered_Cb_tile.shape
+            print "tile.recovered_Cr_tile.shape: ", tile.recovered_Cr_tile.shape
             cv2.imshow("tile.recovered_y_tile", tile.recovered_y_tile)
         
 
     def DWT_helper(self, img, level):
 
         (h, w) = img.shape
-        
+        print "img.shape ", img.shape
         highpass = []
         lowpass = []
         highpass_down = []
@@ -244,22 +254,23 @@ class JPEG2000(object):
         return (hh_down, hl_down, lh_down, ll_down)
 
     def iDWT_helper(self, img, level):
-        i_hh = self.img[0]
-        i_hl = self.img[1]
-        i_lh = self.img[2]
-        i_ll = self.img[3]
+        print "------------------------------------"
+        i_hh = img[0]
+        i_hl = img[1]
+        i_lh = img[2]
+        i_ll = img[3]
+
         i_hh_up = []
         i_hl_up = []
         i_lh_up = []
         i_ll_up = []
 
         (h, w) = i_hh.shape
+        print "initial state"
+        print "initial sample size: ", i_hh.shape
 
-        highpass = []
-        lowpass = []
-
+        # up sampling ##############################
         for row in range(h):
-            # upsampling
             i_hh_up.append(i_hh[row])
             i_hh_up.append(np.zeros(w))
 
@@ -271,34 +282,59 @@ class JPEG2000(object):
 
             i_ll_up.append(i_ll[row])
             i_ll_up.append(np.zeros(w))
+        ##############################
+
+        print "finish up sampling, ", np.asarray(i_hh_up).shape
+        highpass = []
+        lowpass = []
+
+        i_hh_up = np.asarray(i_hh_up)
+        i_hl_up = np.asarray(i_hl_up)
+        i_lh_up = np.asarray(i_lh_up)
+        i_ll_up = np.asarray(i_ll_up)
+
+        (h, w) = i_hh_up.shape
+
 
         # convolve columns and upsample the rows, combine the new N x N/2 images  
-
         for col in range(w):
             # convolve columns
-            highpass.append(np.convolve(i_hh_up[col], self.h1) + np.convolve(i_hl_up[col], self.h0))
-            lowpass.append(np.convolve(i_lh_up[col], self.h1) + np.convolve(i_ll_up[col], self.h0))
+            convolution_result = np.convolve(i_hh_up[:, col], self.h1) + np.convolve(i_hl_up[:, col], self.h0)
+            highpass.append(convolution_result)
+            
+            # print " first convolution_result ", convolution_result.shape
+            # print len(highpass)
+            # print len(highpass[-1])
 
-        highpass = np.asarray(highpass)
-        lowpass = np.asarray(lowpass)
 
+            convolution_result = np.convolve(i_lh_up[:, col], self.h1) + np.convolve(i_ll_up[:, col], self.h0)
+            lowpass.append(convolution_result)
+
+        highpass = np.transpose(np.asarray(highpass))
+        lowpass = np.transpose(np.asarray(lowpass))
+
+
+        print "finish convolution and adding up"
         print "highpass.shape: ", highpass.shape
         print "lowpass.shape: ", lowpass.shape
+
+        (h, w) = highpass.shape
 
         highpass_up = []
         lowpass_up = []
 
         for col in range(w):
-            # upsampling second stage
-            highpass_up.append(highpass[row])
-            highpass_up.append(np.zeros(w))
+            # up sampling second stage
+            highpass_up.append(highpass[:, col])
+            highpass_up.append(np.zeros(h))
 
-            lowpass_up.append(lowpass[row])
-            lowpass_up.append(np.zeros(w))
+            lowpass_up.append(lowpass[:, col])
+            lowpass_up.append(np.zeros(h))
 
-        highpass_up = np.asarray(highpass_up)
-        lowpass_up = np.asarray(lowpass_up)
+        highpass_up = np.transpose(np.asarray(highpass_up))
+        lowpass_up = np.transpose(np.asarray(lowpass_up))
 
+        print "finish up samlping"
         print "highpass_up.shape: ", highpass_up.shape
         print "lowpass_up.shape: ", lowpass_up.shape
 
@@ -306,10 +342,17 @@ class JPEG2000(object):
 
         original_img = []
 
-        for col in range(h):
-            # second pass convolve rows and upsample columns
-            original_img.append(np.convolve(highpass_up[col], self.h1) + np.convolve(lowpass_up[col], self.h0))
 
+        for row in range(h):
+            # second pass convolve rows and upsample columns
+            convolution_result = np.convolve(highpass_up[row], self.h1) + np.convolve(lowpass_up[row], self.h0)
+            # print "final convolution_result ", convolution_result.shape
+            original_img.append(convolution_result)
+        
+        original_img = np.asarray(original_img)
+        # original_img = original_img[:-3, :]
+        print "finish convolution and adding up"
+        print original_img.shape
 
         return original_img
 
@@ -338,9 +381,9 @@ class JPEG2000(object):
 
     def idwt(self):
         for tile in self.tiles:
-            tile.recovered_y_tile = pywt.idwt2(tile.recovered_y_coeffs, 'haar')  
-            tile.recovered_Cb_tile = pywt.idwt2(tile.recovered_Cb_coeffs, 'haar')  
-            tile.recovered_Cr_tile = pywt.idwt2(tile.recovered_Cr_coeffs, 'haar')  
+            tile.recovered_y_tile = pywt.idwt2(tile.y_coeffs, 'haar')  
+            tile.recovered_Cb_tile = pywt.idwt2(tile.Cb_coeffs, 'haar')  
+            tile.recovered_Cr_tile = pywt.idwt2(tile.Cr_coeffs, 'haar')  
             # break
         # print tile.recovered_y_tile.shape
         # print tile.recovered_Cb_tile.shape
@@ -413,19 +456,19 @@ class JPEG2000(object):
         img = self.init_image(self.file_path)
         self.image_tiling(img)
         self.component_transformation()
-        self.dwt()
-        # self.DWT()
-        # self.quantization()
+        # self.dwt()
+        self.DWT()
+        self.quantization()
 
     def backward(self):
-        #self.i_quantization()
-        #self.idwt()
+        self.i_quantization()
+        # self.idwt()
         self.iDWT()
         self.i_component_transformation()
 
     def run(self):
         self.forward()
-        # self.backward()
+        self.backward()
 
 
 if __name__ == '__main__':
