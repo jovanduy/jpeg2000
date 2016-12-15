@@ -1,6 +1,6 @@
-###################################
-# JPEG2000 Image Compression script
-###################################
+"""""""""""""""""""""""""""""""""""
+JPEG2000 Image Compression script
+"""""""""""""""""""""""""""""""""""
 
 from PIL import Image
 from pickle import dump
@@ -10,41 +10,61 @@ import pywt
 import math
 
 class Tile(object):
-    """tile class for storing original tile image, Y, Cr and Cb images"""
+    """ Tile class for storing data about a tile of an image """
     def __init__(self, tile_image):
+        """
+        tile_image: original tile image (np.array)
+        y_tile: original tile's y-colorspace (np.array)
+        Cb_tile: original tile's Cb-colorspace (np.array)
+        Cr_tile: original tile's Cr-colorspace (np.array)
+        """
         self.tile_image = tile_image
         self.y_tile, self.Cb_tile, self.Cr_tile = None, None, None
 
 class JPEG2000(object):
     """compression algorithm, jpeg2000"""
-    def __init__(self):   
-        self.file_path = "data/image.jpg"
+    def __init__(self, file_path = "data/image.jpg", quant = True, lossy = True):
+        """ Initialize JPEG2000 algorithm with certain parameters """
+        self.file_path = file_path
         self.debug = True
-        self.quant = False
+
+        # list of Tile objects of image
         self.tiles = []
+        
+        # tile size
+        self.tile_size = 300
+
+        # lossy compression component transform matrices
         self.component_transformation_matrix = np.array([[0.2999, 0.587, 0.114],
             [-0.16875, -0.33126, 0.5],[0.5, -0.41869, -0.08131]])
-        self.i_component_transformation_matrix = ([[1.0, 0, 1.402], [1.0, -0.34413, -0.71414], [1.0, 1.772, 0]])
-        self.tile_size = 300
-        self.step = 30
-        
+        self.i_component_transformation_matrix = ([[1.0, 0, 1.402], [1.0, -0.34413, -0.71414], [1.0, 1.772, 0]])  
+
+       # lossless compression component transform matrices
+
+       # haar
         self.h0 = [math.sqrt(0.5), math.sqrt(0.5)]
         self.h1 = [math.sqrt(0.5),  - math.sqrt(0.5)]
+
+        # debauchies
         # self.h0 = [-0.010597401784997278, 0.032883011666982945, 0.030841381835986965, -0.18703481171888114, -0.02798376941698385, 0.6308807679295904, 0.7148465705525415, 0.23037781330885523];
         # self.h1 = [-0.2303778133, 0.7148465706, -0.6308807679, -0.0279837694, 0.1870348117, 0.0308413818, -0.0328830117, -0.0105974018]
 
+        # quantization
+        self.quant = quant
+        self.step = 30
+
+
     def init_image(self, path):
+        """ return the image at path """
         img = cv2.imread(path)
-        # imgYCC = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-        # print type(imgYCC)
-        # print imgYCC.shape
-        # print imgYCC[:, :, 0].shape
-        # cv2.imshow("imgYCC", imgYCC[:, :, 0])
-        # cv2.waitKey(0) 
-        # raise "debug"       
         return img
 
     def image_tiling(self, img):
+        """ 
+            tile img into square tiles based on self.tile_size
+            tiles from bottom and right edges will be smaller if
+            image w and h are not divisible by self.tile_size
+        """
         # tile image
         tile_size = self.tile_size
         (h, w, _) = img.shape
