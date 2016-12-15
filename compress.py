@@ -23,25 +23,31 @@ class Tile(object):
 
 class JPEG2000(object):
     """compression algorithm, jpeg2000"""
-    def __init__(self, file_path = "data/image.jpg", quant = True, lossy = True):
-        """ Initialize JPEG2000 algorithm with certain parameters """
+    def __init__(self, file_path = "data/image.jpg", quant = True, lossy = True, tile_size = 300):
+        """ 
+        Initialize JPEG2000 algorithm 
+        
+        Initial parameters:
+        file_path: path to image file to be compressed (string)
+        quant: include quantization step (boolean)
+        lossy: perform lossy compression (boolean)
+        tile_size: size of tile (int)
+        """
         self.file_path = file_path
         self.debug = True
-
+        self.lossy = lossy
         # list of Tile objects of image
         self.tiles = []
         
         # tile size
-        self.tile_size = 300
+        self.tile_size = tile_size
 
         # lossy compression component transform matrices
         self.component_transformation_matrix = np.array([[0.2999, 0.587, 0.114],
             [-0.16875, -0.33126, 0.5],[0.5, -0.41869, -0.08131]])
         self.i_component_transformation_matrix = ([[1.0, 0, 1.402], [1.0, -0.34413, -0.71414], [1.0, 1.772, 0]])  
 
-       # lossless compression component transform matrices
-
-       # haar
+       # haar filter coefficients
         self.h0 = [math.sqrt(0.5), math.sqrt(0.5)]
         self.h1 = [math.sqrt(0.5),  - math.sqrt(0.5)]
 
@@ -61,54 +67,65 @@ class JPEG2000(object):
 
     def image_tiling(self, img):
         """ 
-            tile img into square tiles based on self.tile_size
-            tiles from bottom and right edges will be smaller if
-            image w and h are not divisible by self.tile_size
+        tile img into square tiles based on self.tile_size
+        tiles from bottom and right edges will be smaller if
+        image w and h are not divisible by self.tile_size
         """
-        # tile image
         tile_size = self.tile_size
-        (h, w, _) = img.shape
+        (h, w, _) = img.shape # size of original image
         counter = 0
         
-        left_over = w%tile_size
+        # change w and h to be divisible by tile_size
+        left_over = w % tile_size
         w += (tile_size - left_over)
-        left_over = h%tile_size
+        left_over = h % tile_size
         h += (tile_size - left_over)
 
-        for i in range(0, w, tile_size):    # for every pixel:
-            for j in range(0, h, tile_size):
+        # create the tiles by looping through w and h to stop on 
+        # every pixel that is the top left corner of a tile
+        for i in range(0, w, tile_size): # loop through the width (columns) of img, skipping tile_size pixels every time
+            for j in range(0, h, tile_size): # loop through the height (rows) of img, skipping tile_size pixels every time
+                # add the tile starting at pixel of row j and column i
                 tile = Tile(img[j:j + tile_size, i:i + tile_size])
-                counter += 1
                 self.tiles.append(tile)
-
-                # if self.debug:
-                #     cv2.imshow("test_image" + str(counter), tile.tile_image)
-                #     cv2.waitKey(0)
-
 
     def dc_level_shift(self, img):
         # dc level shifting
         pass
     
     def component_transformation(self):
-        # component transformation:
-        # split image into Y, Cb, Cr
-
+        """
+        Transform every tile in self.tiles from RGB colorspace
+        to either YCbCr colorspace (lossy) or YUV colorspace (lossless)
+        and save the data for each color component into the tile object
+        """
+        # loop thorugh tiles
         for tile in self.tiles:
-            (h, w, _) = tile.tile_image.shape
+            (h, w, _) = tile.tile_image.shape # size of tile
+
+            # transform tile to RGB colorspace (library we use to view images uses BGR)
             rgb_tile = cv2.cvtColor(tile.tile_image, cv2.COLOR_BGR2RGB)
             Image_tile = Image.fromarray(rgb_tile, 'RGB')
-
-            tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.empty_like(tile.tile_image), np.empty_like(tile.tile_image), np.empty_like(tile.tile_image)
+            
+            # create placeholder matrices for the different colorspace components
+            # that are same w and h as original tile
+            #tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.empty_like(tile.tile_image), np.empty_like(tile.tile_image), np.empty_like(tile.tile_image)
             tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros((h, w)), np.zeros((h, w)), np.zeros((h, w))
             # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image)
 
-
-            for i in range(0, w):    # for every pixel:
+            # loop through every pixel and extract the corresponding
+            # transformed colorspace values and save in tile object
+            for i in range(0, w):
                 for j in range(0, h):
                     r, g, b = Image_tile.getpixel((i, j))
                     rgb_array = np.array([r, g, b])
-                    yCbCr_array = np.matmul(self.component_transformation_matrix, rgb_array)
+                    if self.lossy:
+                        # use irreversible component transformation matrix to transform to YCbCr
+                        yCbCr_array = np.matmul(self.component_transformation_matrix, rgb_array)
+                    else:
+                        # use reversible component transform to get YUV components
+                        yCbCr_array = np.matmul(self.component_transformation_matrix, rgb_array)
+
                     # y = .299 * r + .587 * g + .114 * b 
                     # Cb = 0 
                     # Cr = 0
@@ -132,24 +149,32 @@ class JPEG2000(object):
         
 
     def i_component_transformation(self):
-        # component transformation:
-        # split image into Y, Cb, Cr
-
+        """
+        Inverse component transformation:
+        transform all tile back to RGB colorspace
+        """
         for tile in self.tiles:
             (h, w, _) = tile.tile_image.shape
-            print "tile.tile_image.shape: ",  tile.tile_image.shape
             # (h, w) = tile.recovered_y_tile.shape
 
+            # initialize recovered tile matrix, same size as original 3 dimensional tile
             tile.recovered_tile = np.empty_like(tile.tile_image)
 
-
-            for i in range(0, w):    # for every pixel:
+            # loop through every pixel of the tile recovered from iDWT and use
+            # the YCbCr values (if lossy) or YUV values (is lossless)
+            # to transfom back to single RGB tile
+            for i in range(0, w):
                 for j in range(0, h):
                     y, Cb, Cr = tile.recovered_y_tile[j][i], tile.recovered_Cb_tile[j][i], tile.recovered_Cr_tile[j][i]
-                    
                     yCbCr_array = np.array([y, Cb, Cr])
-
-                    rgb_array = np.matmul(self.i_component_transformation_matrix, yCbCr_array)
+                    
+                    if self.lossy:
+                        # use irreversible component transform matrix to get back RGB values
+                        rgb_array = np.matmul(self.i_component_transformation_matrix, yCbCr_array)
+                    else:
+                        # use reversible component transform to get back RGB values
+                        rgb_array = np.matmul(self.i_component_transformation_matrix, yCbCr_array)
+                    # save all three color dimensions to the given pixel
                     tile.recovered_tile[j][i] = rgb_array
             # break
                 
@@ -162,12 +187,16 @@ class JPEG2000(object):
 
 
     def DWT(self, level = 1):
+        """
+        Use the discrete wavelet transform to get coefficients for the three different
+        components of each tile, saving coefficients in the tile image
+        level: number of times to run DWT (using lowpass approx for subsequent calls)
+        """
+        # loop through all of the tiles
         for tile in self.tiles:
             tile.y_coeffs  = self.DWT_helper(tile.y_tile, level)
             tile.Cb_coeffs = self.DWT_helper(tile.Cb_tile, level)
             tile.Cr_coeffs = self.DWT_helper(tile.Cr_tile, level)
-
-            # break
 
         if self.debug:
             tile = self.tiles[0]
@@ -189,9 +218,16 @@ class JPEG2000(object):
             cv2.waitKey(0)
 
     def iDWT(self, level = 1):
-
+        """
+        Use the inverse discrete wavelet transform to recover the pixel
+        values for each color component of every tile, saving values in
+        the tile image
+        level: number of tiles to run iDWT
+        """
+        # loop through all of the tiles
         for tile in self.tiles:
             if self.quant:
+                # if tile was quantized, need to use the recovered, un-quantized coefficients
                 tile.recovered_y_tile  = self.iDWT_helper(tile.recovered_y_coeffs, level)
                 tile.recovered_Cb_tile = self.iDWT_helper(tile.recovered_Cb_coeffs, level)
                 tile.recovered_Cr_tile = self.iDWT_helper(tile.recovered_Cr_coeffs, level)
@@ -213,30 +249,36 @@ class JPEG2000(object):
         
 
     def DWT_helper(self, img, level):
-
+        """
+        Impletement the DWT using convolution on img
+        """
         (h, w) = img.shape
         print "img.shape ", img.shape
+        # placeholder arrays for coefficients resulting from first run
+        # of high and low pass filtering, along with downsampling
         highpass = []
         lowpass = []
         highpass_down = []
         lowpass_down = []
-
+        
+        # convolve the rows
         for row in range(h):
-            # convolve and downsample the rows
             highpass.append(np.convolve(img[row,:], self.h1[::-1]))
             lowpass.append(np.convolve(img[row,:], self.h0[::-1]))
 
+        # turn highpass and lowpass into np.arrays
         highpass = np.asarray(highpass)
         lowpass = np.asarray(lowpass)
 
         print "highpass.shape: ", highpass.shape
         print "lowpass.shape: ", lowpass.shape
         
+        # downsample the rows
         for row in range(h):
             highpass_down.append(highpass[row][::2])
             lowpass_down.append(lowpass[row][::2])
 
-
+        # turn into np.arrays
         highpass_down = np.asarray(highpass_down)
         lowpass_down = np.asarray(lowpass_down)
 
@@ -244,18 +286,21 @@ class JPEG2000(object):
         print "lowpass_down.shape: ", lowpass_down.shape
 
         (h, w) = highpass_down.shape
+
+        # initialize arrays for final coefficients after 2D filtering
         hh = []
         hl = []
         ll = []
         lh = []
 
+        # initialize arrays for coefficients after final downsampling
         hh_down = []
         hl_down = []
         lh_down = []
         ll_down = []
 
+        # convolute the columns
         for col in range(w):
-            # second pass of filtering
             hh.append(np.convolve(highpass_down[:,col], self.h1[::-1]))
             hl.append(np.convolve(highpass_down[:,col], self.h0[::-1]))
             lh.append(np.convolve(lowpass_down[:,col], self.h1[::-1]))
@@ -272,7 +317,7 @@ class JPEG2000(object):
         print "lh.shape: ", lh.shape
         print "ll.shape: ", ll.shape
 
-
+        # downsample the columns
         for col in range(w):
             hh_down.append(hh[:, col][::2])
             hl_down.append(hl[:, col][::2])
@@ -289,6 +334,7 @@ class JPEG2000(object):
         print "lh_down.shape: ", lh_down.shape
         print "ll_down.shape: ", ll_down.shape
 
+        # run the DWT again on lowpass approximation for deeper filtering
         if (level > 1):
             hh_down, hl_down, lh_down, ll_down = DWT_helper(ll_down, level-1)
 
