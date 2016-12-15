@@ -20,6 +20,7 @@ class JPEG2000(object):
     def __init__(self):   
         self.file_path = "data/image.jpg"
         self.debug = True
+        self.quant = False
         self.tiles = []
         self.component_transformation_matrix = np.array([[0.2999, 0.587, 0.114],
             [-0.16875, -0.33126, 0.5],[0.5, -0.41869, -0.08131]])
@@ -157,9 +158,14 @@ class JPEG2000(object):
     def iDWT(self, level = 1):
 
         for tile in self.tiles:
-            tile.recovered_y_tile  = self.iDWT_helper(tile.y_coeffs, level)
-            tile.recovered_Cb_tile = self.iDWT_helper(tile.Cb_coeffs, level)
-            tile.recovered_Cr_tile = self.iDWT_helper(tile.Cr_coeffs, level)
+            if self.quant:
+                tile.recovered_y_tile  = self.iDWT_helper(tile.recovered_y_coeffs, level)
+                tile.recovered_Cb_tile = self.iDWT_helper(tile.recovered_Cb_coeffs, level)
+                tile.recovered_Cr_tile = self.iDWT_helper(tile.recovered_Cr_coeffs, level)
+            else:
+                tile.recovered_y_tile  = self.iDWT_helper(tile.y_coeffs, level)
+                tile.recovered_Cb_tile = self.iDWT_helper(tile.Cb_coeffs, level)
+                tile.recovered_Cr_tile = self.iDWT_helper(tile.Cr_coeffs, level)
             
             # break
 
@@ -361,9 +367,13 @@ class JPEG2000(object):
         # do the mathmagic dwt
         for tile in self.tiles:
             # print "before dwt tile.y_tile.shape: ", tile.y_tile.shape
-            tile.y_coeffs = pywt.dwt2(tile.y_tile, 'haar') #cA, (cH, cV, cD) 
-            tile.Cb_coeffs = pywt.dwt2(tile.Cb_tile, 'haar')
-            tile.Cr_coeffs = pywt.dwt2(tile.Cr_tile, 'haar')
+            cA, (cH, cV, cD)  = pywt.dwt2(tile.y_tile, 'haar') #cA, (cH, cV, cD)
+            tile.y_coeffs = (cA, cH, cV, cD)
+            cA, (cH, cV, cD)  = pywt.dwt2(tile.Cb_tile, 'haar') #cA, (cH, cV, cD)
+            tile.Cb_coeffs = (cA, cH, cV, cD)
+            cA, (cH, cV, cD)  = pywt.dwt2(tile.Cr_tile, 'haar') #cA, (cH, cV, cD)
+            tile.Cr_coeffs = (cA, cH, cV, cD)
+
             # cA, (cH, cV, cD) = tile.y_coeffs
             # print type(cA)
             # print cA.shape
@@ -373,17 +383,22 @@ class JPEG2000(object):
         print type(tile.y_coeffs[0])
         print tile.y_coeffs[0].shape
         cv2.imshow("tile.y_coeffs[0]", tile.y_coeffs[0])
-        cv2.imshow("tile.y_coeffs[1][0]", tile.y_coeffs[1][0])
-        cv2.imshow("tile.y_coeffs[1][1]", tile.y_coeffs[1][1])
-        cv2.imshow("tile.y_coeffs[1][2]", tile.y_coeffs[1][2])
+        cv2.imshow("tile.y_coeffs[1]", tile.y_coeffs[1])
+        cv2.imshow("tile.y_coeffs[2]", tile.y_coeffs[2])
+        cv2.imshow("tile.y_coeffs[3]", tile.y_coeffs[3])
 
         cv2.waitKey(0)
 
     def idwt(self):
         for tile in self.tiles:
-            tile.recovered_y_tile = pywt.idwt2(tile.y_coeffs, 'haar')  
-            tile.recovered_Cb_tile = pywt.idwt2(tile.Cb_coeffs, 'haar')  
-            tile.recovered_Cr_tile = pywt.idwt2(tile.Cr_coeffs, 'haar')  
+            if self.quant:
+                tile.recovered_y_tile = pywt.idwt2(tile.recovered_y_coeffs, 'haar')  
+                tile.recovered_Cb_tile = pywt.idwt2(tile.recovered_Cb_coeffs, 'haar')  
+                tile.recovered_Cr_tile = pywt.idwt2(tile.recovered_Cr_coeffs, 'haar')  
+            else:
+                tile.recovered_y_tile = pywt.idwt2(tile.y_coeffs, 'haar')  
+                tile.recovered_Cb_tile = pywt.idwt2(tile.Cb_coeffs, 'haar')  
+                tile.recovered_Cr_tile = pywt.idwt2(tile.Cr_coeffs, 'haar')  
             # break
         # print tile.recovered_y_tile.shape
         # print tile.recovered_Cb_tile.shape
@@ -416,19 +431,19 @@ class JPEG2000(object):
 
     def quantization_helper(self, img):
         cA = self.quantization_math(img[0])
-        cH = self.quantization_math(img[1][0]) #cA, (cH, cV, cD)
-        cV = self.quantization_math(img[1][1]) #cA, (cH, cV, cD)
-        cD = self.quantization_math(img[1][2]) #cA, (cH, cV, cD)
+        cH = self.quantization_math(img[1]) 
+        cV = self.quantization_math(img[2]) 
+        cD = self.quantization_math(img[3]) 
         
-        return cA, (cH, cV, cD)
+        return cA, cH, cV, cD
 
     def i_quantization_helper(self, img):
         cA = self.i_quantization_math(img[0])
-        cH = self.i_quantization_math(img[1][0]) #cA, (cH, cV, cD)
-        cV = self.i_quantization_math(img[1][1]) #cA, (cH, cV, cD)
-        cD = self.i_quantization_math(img[1][2]) #cA, (cH, cV, cD)
+        cH = self.i_quantization_math(img[1]) 
+        cV = self.i_quantization_math(img[2]) 
+        cD = self.i_quantization_math(img[3]) 
         
-        return cA, (cH, cV, cD)
+        return cA, cH, cV, cD
 
     def quantization(self):
         # quantization
@@ -458,10 +473,12 @@ class JPEG2000(object):
         self.component_transformation()
         # self.dwt()
         self.DWT()
-        self.quantization()
+        if self.quant:
+            self.quantization()
 
     def backward(self):
-        self.i_quantization()
+        if self.quant:
+            self.i_quantization()
         # self.idwt()
         self.iDWT()
         self.i_component_transformation()
