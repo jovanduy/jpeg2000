@@ -78,10 +78,10 @@ class JPEG2000(object):
             (h, w, _) = tile.tile_image.shape
             rgb_tile = cv2.cvtColor(tile.tile_image, cv2.COLOR_BGR2RGB)
             Image_tile = Image.fromarray(rgb_tile, 'RGB')
-            # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.empty_like(tile.tile_image), np.empty_like(tile.tile_image), np.empty_like(tile.tile_image)
 
-            # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image), np.zeros(tile.tile_image)
+            tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.empty_like(tile.tile_image), np.empty_like(tile.tile_image), np.empty_like(tile.tile_image)
             tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros((h, w)), np.zeros((h, w)), np.zeros((h, w))
+            # tile.y_tile, tile.Cb_tile, tile.Cr_tile = np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image), np.zeros_like(tile.tile_image)
 
 
             for i in range(0, w):    # for every pixel:
@@ -95,14 +95,21 @@ class JPEG2000(object):
                     tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(yCbCr_array[0]), int(yCbCr_array[1]), int(yCbCr_array[2])
                     # tile.y_tile[j][i], tile.Cb_tile[j][i], tile.Cr_tile[j][i] = int(y), int(Cb), int(Cr)
             
-        # if self.debug:
-        #     tile = self.tiles[0]
-        #     print tile.y_tile.shape
-        #     cv2.imshow("y_tile", tile.y_tile)
-        #     cv2.imshow("Cb_tile", tile.Cb_tile)
-        #     cv2.imshow("Cr_tile", tile.Cr_tile)
+        if self.debug:
+            tile = self.tiles[0]
+            print tile.y_tile.shape
+            Image.fromarray(tile.y_tile).show()
+
+
+        #     # Image.fromarray(tile.y_tile).convert('RGB').save("my.jpg")
+
+
+        #     # cv2.imshow("y_tile", tile.y_tile)
+        #     # cv2.imshow("Cb_tile", tile.Cb_tile)
+        #     # cv2.imshow("Cr_tile", tile.Cr_tile)
         #     # print tile.y_tile[0]
         #     cv2.waitKey(0)
+        
 
     def i_component_transformation(self):
         # component transformation:
@@ -126,11 +133,11 @@ class JPEG2000(object):
                     tile.recovered_tile[j][i] = rgb_array
             # break
                 
-            if self.debug:
-                rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
-                print "rgb_tile.shape: ", rgb_tile.shape
-                cv2.imshow("tile.recovered_tile", rgb_tile)
-                cv2.waitKey(0)
+            # if self.debug:
+            #     rgb_tile = cv2.cvtColor(tile.recovered_tile, cv2.COLOR_RGB2BGR)
+            #     print "rgb_tile.shape: ", rgb_tile.shape
+            #     cv2.imshow("tile.recovered_tile", rgb_tile)
+            #     cv2.waitKey(0)
 
 
 
@@ -149,11 +156,17 @@ class JPEG2000(object):
             cv2.imshow("tile.y_coeffs[1]", tile.y_coeffs[1])
             cv2.imshow("tile.y_coeffs[2]", tile.y_coeffs[2])
             cv2.imshow("tile.y_coeffs[3]", tile.y_coeffs[3])
+            Image.fromarray(tile.y_coeffs[0]).show()
+            Image.fromarray(tile.y_coeffs[1]).show()
+            Image.fromarray(tile.y_coeffs[2]).show()
+            Image.fromarray(tile.y_coeffs[3]).show()
+
+
             # from PIL import Image
             # img = Image.fromarray(tile.y_coeffs[3], 'RGB')
             # img.save('my.png')
             # img.show()
-            # cv2.waitKey(0)
+            cv2.waitKey(0)
 
     def iDWT(self, level = 1):
 
@@ -169,12 +182,14 @@ class JPEG2000(object):
             
             # break
 
-        if self.debug:
-            tile = self.tiles[0]        
-            print "tile.recovered_y_tile.shape: ", tile.recovered_y_tile.shape
-            print "tile.recovered_Cb_tile.shape: ", tile.recovered_Cb_tile.shape
-            print "tile.recovered_Cr_tile.shape: ", tile.recovered_Cr_tile.shape
-            cv2.imshow("tile.recovered_y_tile", tile.recovered_y_tile)
+        # if self.debug:
+        #     tile = self.tiles[0]        
+        #     print "tile.recovered_y_tile.shape: ", tile.recovered_y_tile.shape
+        #     print "tile.recovered_Cb_tile.shape: ", tile.recovered_Cb_tile.shape
+        #     print "tile.recovered_Cr_tile.shape: ", tile.recovered_Cr_tile.shape
+        #     # cv2.imshow("tile.recovered_y_tile", tile.recovered_y_tile)
+        #     Image.fromarray(tile.recovered_y_tile).show()
+
         
 
     def DWT_helper(self, img, level):
