@@ -1,5 +1,6 @@
 """""""""""""""""""""""""""""""""""
 JPEG2000 Image Compression script
+to run: python compress.py
 """""""""""""""""""""""""""""""""""
 
 from PIL import Image
@@ -36,6 +37,7 @@ class JPEG2000(object):
         self.file_path = file_path
         self.debug = True
         self.lossy = lossy
+
         # list of Tile objects of image
         self.tiles = []
         
@@ -161,11 +163,12 @@ class JPEG2000(object):
         Inverse component transformation:
         transform all tile back to RGB colorspace
         """
+        # loop through tiles, converting each back to RGB colorspace
         for tile in self.tiles:
-            (h, w, _) = tile.tile_image.shape
+            (h, w, _) = tile.tile_image.shape # size of tile
             # (h, w) = tile.recovered_y_tile.shape
 
-            # initialize recovered tile matrix, same size as original 3 dimensional tile
+            # initialize recovered tile matrix to same size as original 3 dimensional tile
             tile.recovered_tile = np.empty_like(tile.tile_image)
 
             # loop through every pixel of the tile recovered from iDWT and use
@@ -240,6 +243,7 @@ class JPEG2000(object):
                 tile.recovered_Cb_tile = self.iDWT_helper(tile.recovered_Cb_coeffs, level)
                 tile.recovered_Cr_tile = self.iDWT_helper(tile.recovered_Cr_coeffs, level)
             else:
+                # if tile wasn't quantized, need to use the coeffs from DWT
                 tile.recovered_y_tile  = self.iDWT_helper(tile.y_coeffs, level)
                 tile.recovered_Cb_tile = self.iDWT_helper(tile.Cb_coeffs, level)
                 tile.recovered_Cr_tile = self.iDWT_helper(tile.Cr_coeffs, level)
@@ -260,7 +264,7 @@ class JPEG2000(object):
         """
         Impletement the DWT using convolution on img
         """
-        (h, w) = img.shape
+        (h, w) = img.shape # size of image
         print "img.shape ", img.shape
         # placeholder arrays for coefficients resulting from first run
         # of high and low pass filtering, along with downsampling
@@ -275,6 +279,7 @@ class JPEG2000(object):
             lowpass.append(np.convolve(img[row,:], self.h0[::-1]))
 
         # turn highpass and lowpass into np.arrays
+        # to allow for indexing by column
         highpass = np.asarray(highpass)
         lowpass = np.asarray(lowpass)
 
@@ -293,6 +298,7 @@ class JPEG2000(object):
         print "highpass_down.shape: ", highpass_down.shape
         print "lowpass_down.shape: ", lowpass_down.shape
 
+        # size of downsampled, filtered once tile
         (h, w) = highpass_down.shape
 
         # initialize arrays for final coefficients after 2D filtering
@@ -307,13 +313,15 @@ class JPEG2000(object):
         lh_down = []
         ll_down = []
 
-        # convolute the columns
+        # convolute the columns, appending each column as a sub array to the given array
         for col in range(w):
             hh.append(np.convolve(highpass_down[:,col], self.h1[::-1]))
             hl.append(np.convolve(highpass_down[:,col], self.h0[::-1]))
             lh.append(np.convolve(lowpass_down[:,col], self.h1[::-1]))
             ll.append(np.convolve(lowpass_down[:,col], self.h0[::-1]))
 
+        # turn the arrays to np.arrays and transpose them
+        # (since columns were appended as rows in above step)
         hh = np.transpose(np.asarray(hh))
         hl = np.transpose(np.asarray(hl))
         lh = np.transpose(np.asarray(lh))
@@ -332,6 +340,8 @@ class JPEG2000(object):
             lh_down.append(lh[:, col][::2])
             ll_down.append(ll[:, col][::2])
 
+        # turn the arrays to np.arrays and transpose them
+        # (since columns were appended as rows in above step)
         hh_down = np.transpose(np.asarray(hh_down))
         hl_down = np.transpose(np.asarray(hl_down))
         lh_down = np.transpose(np.asarray(lh_down))
@@ -349,12 +359,19 @@ class JPEG2000(object):
         return (hh_down, hl_down, lh_down, ll_down)
 
     def iDWT_helper(self, img, level):
+        """
+        Implement the inverse DWT on the tiles
+        of img, using convolution
+        """
         print "------------------------------------"
-        i_hh = img[0]
-        i_hl = img[1]
-        i_lh = img[2]
-        i_ll = img[3]
 
+        # the 4 arrays holding the coefficients for the iDWT
+        hh = img[0]
+        hl = img[1]
+        lh = img[2]
+        ll = img[3]
+
+        # initialize arrays for upsampling
         i_hh_up = []
         i_hl_up = []
         i_lh_up = []
@@ -364,25 +381,23 @@ class JPEG2000(object):
         print "initial state"
         print "initial sample size: ", i_hh.shape
 
-        # up sampling ##############################
+        # up sampling on the rows (append a row of zeros after every row)
         for row in range(h):
-            i_hh_up.append(i_hh[row])
+            i_hh_up.append(hh[row])
             i_hh_up.append(np.zeros(w))
 
-            i_hl_up.append(i_hl[row])
+            i_hl_up.append(hl[row])
             i_hl_up.append(np.zeros(w))
 
-            i_lh_up.append(i_lh[row])
+            i_lh_up.append(lh[row])
             i_lh_up.append(np.zeros(w))
 
-            i_ll_up.append(i_ll[row])
+            i_ll_up.append(ll[row])
             i_ll_up.append(np.zeros(w))
-        ##############################
 
         print "finish up sampling, ", np.asarray(i_hh_up).shape
-        highpass = []
-        lowpass = []
-
+        
+        # transform upsampled arrays to np.arrays
         i_hh_up = np.asarray(i_hh_up)
         i_hl_up = np.asarray(i_hl_up)
         i_lh_up = np.asarray(i_lh_up)
@@ -390,10 +405,15 @@ class JPEG2000(object):
 
         (h, w) = i_hh_up.shape
 
+        # initialize arrays to hold coefficients that will eventually
+        # be put through the high and low pass filters, respectively
+        highpass = []
+        lowpass = []
 
-        # convolve columns and upsample the rows, combine the new N x N/2 images  
+        # convolve columns and sum diagonal and vertical, horizontal and LP approx
+        # and then append to new matrices
         for col in range(w):
-            # convolve columns
+            # diagonal (HP) and vertical (LP)
             convolution_result = np.convolve(i_hh_up[:, col], self.h1) + np.convolve(i_hl_up[:, col], self.h0)
             highpass.append(convolution_result)
             
@@ -401,10 +421,11 @@ class JPEG2000(object):
             # print len(highpass)
             # print len(highpass[-1])
 
-
+            # horizontal (HP) and LP approx (LP)
             convolution_result = np.convolve(i_lh_up[:, col], self.h1) + np.convolve(i_ll_up[:, col], self.h0)
             lowpass.append(convolution_result)
 
+        # change to np.array and transpose the matrices
         highpass = np.transpose(np.asarray(highpass))
         lowpass = np.transpose(np.asarray(lowpass))
 
@@ -415,17 +436,20 @@ class JPEG2000(object):
 
         (h, w) = highpass.shape
 
+        # initialize arrays to hold the upsampled information
         highpass_up = []
         lowpass_up = []
 
+        # upsample the columns by adding a column of zeros after every column
+        # save information into initialized arrays
         for col in range(w):
-            # up sampling second stage
             highpass_up.append(highpass[:, col])
             highpass_up.append(np.zeros(h))
 
             lowpass_up.append(lowpass[:, col])
             lowpass_up.append(np.zeros(h))
 
+        # change to np.arrays and transpose
         highpass_up = np.transpose(np.asarray(highpass_up))
         lowpass_up = np.transpose(np.asarray(lowpass_up))
 
@@ -435,15 +459,18 @@ class JPEG2000(object):
 
         (h, w) = highpass_up.shape
 
+        # initialize array to hold the original image
+        # information extracted from the iDWT
         original_img = []
 
-
+        # convolve the rows with the filter according to the
+        # name of the array and sum the two arrays and save
+        # information to original_img
         for row in range(h):
-            # second pass convolve rows and upsample columns
             convolution_result = np.convolve(highpass_up[row], self.h1) + np.convolve(lowpass_up[row], self.h0)
-            # print "final convolution_result ", convolution_result.shape
             original_img.append(convolution_result)
         
+        # convert to np.array
         original_img = np.asarray(original_img)
         # original_img = original_img[:-3, :]
         print "finish convolution and adding up"
@@ -453,14 +480,17 @@ class JPEG2000(object):
 
 
     def dwt(self):
-        # do the mathmagic dwt
+        """
+        Run the 2-DWT (using Haar family) from the pywavelet library 
+        on every tile and save coefficient results in tile object
+        """
+        # loop through the tiles
         for tile in self.tiles:
-            # print "before dwt tile.y_tile.shape: ", tile.y_tile.shape
-            cA, (cH, cV, cD)  = pywt.dwt2(tile.y_tile, 'haar') #cA, (cH, cV, cD)
-            tile.y_coeffs = (cA, cH, cV, cD)
-            cA, (cH, cV, cD)  = pywt.dwt2(tile.Cb_tile, 'haar') #cA, (cH, cV, cD)
+            cA, (cH, cV, cD)  = pywt.dwt2(tile.y_tile, 'haar') # library function returns tuple: (cA, (cH, cV, cD))
+            tile.y_coeffs = (cA, cH, cV, cD) # save information as a 4-tuple, to mimic how our implementation saves the coeffs
+            cA, (cH, cV, cD)  = pywt.dwt2(tile.Cb_tile, 'haar')
             tile.Cb_coeffs = (cA, cH, cV, cD)
-            cA, (cH, cV, cD)  = pywt.dwt2(tile.Cr_tile, 'haar') #cA, (cH, cV, cD)
+            cA, (cH, cV, cD)  = pywt.dwt2(tile.Cr_tile, 'haar')
             tile.Cr_coeffs = (cA, cH, cV, cD)
 
             # cA, (cH, cV, cD) = tile.y_coeffs
@@ -479,12 +509,19 @@ class JPEG2000(object):
         cv2.waitKey(0)
 
     def idwt(self):
+        """
+        Run the inverse DWT (using the Haar family) from the pywavelet library
+        on every tile and save the recovered tiles in the tile object
+        """
+        # loop through tiles
         for tile in self.tiles:
             if self.quant:
+                # if tile was quantized, need to use the recovered, un-quantized coefficients
                 tile.recovered_y_tile = pywt.idwt2(tile.recovered_y_coeffs, 'haar')  
                 tile.recovered_Cb_tile = pywt.idwt2(tile.recovered_Cb_coeffs, 'haar')  
                 tile.recovered_Cr_tile = pywt.idwt2(tile.recovered_Cr_coeffs, 'haar')  
             else:
+                # if tile wasn't quantized, need to use the coeffs from DWT
                 tile.recovered_y_tile = pywt.idwt2(tile.y_coeffs, 'haar')  
                 tile.recovered_Cb_tile = pywt.idwt2(tile.Cb_coeffs, 'haar')  
                 tile.recovered_Cr_tile = pywt.idwt2(tile.Cr_coeffs, 'haar')  
@@ -497,28 +534,52 @@ class JPEG2000(object):
         # print tile.recovered_y_tile[0]
 
     def quantization_math(self, img):
+        """
+        Quantize img: for every coefficient in img,
+        save the original sign and decrease number of
+        decimals saved by flooring the absolute value
+        of the coeffcient divided by the step size
+        """
+        # initialize array to hold quantized coefficients,
+        # to be same size as img
         (h, w) = img.shape
         quantization_img = np.empty_like(img)
 
-        for i in range(0, w):    # for every pixel:
+        # loop through every coefficient in img
+        for i in range(0, w):
             for j in range(0, h):
+                # save the sign
                 if img[j][i] >= 0:
                     sign = 1
                 else:
                     sign = -1
+                # save quantized coeffcicient
                 quantization_img[j][i] = sign * math.floor(abs(img[j][i])/self.step)
         return quantization_img
 
     def i_quantization_math(self, img):
+        """
+        Inverse quantization of img: un-quantize
+        the quantized coefficients in img by 
+        multiplying the coeffs by the step size
+        """
+        # initialize array to hold un-quantized coefficients
+        # to be same size as img
         (h, w) = img.shape
         i_quantization_img = np.empty_like(img)
 
-        for i in range(0, w):    # for every pixel:
+        # loop through ever coefficient in img
+        for i in range(0, w):
             for j in range(0, h):
+                # save un-quantized coefficient
                 i_quantization_img[j][i] = img[j][i] * self.step
         return i_quantization_img
 
     def quantization_helper(self, img):
+        """
+        Quantize the 4 different data arrays representing
+        the 4 different coefficient approximations/details
+        """
         cA = self.quantization_math(img[0])
         cH = self.quantization_math(img[1]) 
         cV = self.quantization_math(img[2]) 
@@ -527,6 +588,10 @@ class JPEG2000(object):
         return cA, cH, cV, cD
 
     def i_quantization_helper(self, img):
+        """
+        Un-quantize the 4 different data arrays representing
+        the 4 different coefficient approximations/details
+        """
         cA = self.i_quantization_math(img[0])
         cH = self.i_quantization_math(img[1]) 
         cV = self.i_quantization_math(img[2]) 
@@ -535,14 +600,21 @@ class JPEG2000(object):
         return cA, cH, cV, cD
 
     def quantization(self):
-        # quantization
+        """
+        Quantize the tiles, saving the quantized
+        information to the tile object
+        """
         for tile in self.tiles:
+            # quantize the tile in all 3 colorspaces
             tile.quantization_y = self.quantization_helper(tile.y_coeffs)
             tile.quantization_Cb = self.quantization_helper(tile.Cb_coeffs)
             tile.quantization_Cr = self.quantization_helper(tile.Cr_coeffs)
 
     def i_quantization(self):
-        # quantization
+        """
+        Un-quantize the tiles, saving the un-quantized
+        information to the tile object
+        """
         for tile in self.tiles:
             tile.recovered_y_coeffs = self.i_quantization_helper(tile.quantization_y)
             tile.recovered_Cb_coeffs = self.i_quantization_helper(tile.quantization_Cb)
@@ -557,6 +629,9 @@ class JPEG2000(object):
         pass
 
     def forward(self):
+        """
+        Run the forward transformations to compress img
+        """
         img = self.init_image(self.file_path)
         self.image_tiling(img)
         self.component_transformation()
@@ -566,6 +641,10 @@ class JPEG2000(object):
             self.quantization()
 
     def backward(self):
+        """
+        Run the backwards transformations to get the image back
+        from the compressed data
+        """
         if self.quant:
             self.i_quantization()
         # self.idwt()
@@ -573,6 +652,11 @@ class JPEG2000(object):
         self.i_component_transformation()
 
     def run(self):
+        """
+        Run forward and backward transformations, saving
+        compressed image data and reconstructing the image
+        from the compressed data
+        """
         self.forward()
         self.backward()
 
