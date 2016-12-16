@@ -23,7 +23,7 @@ class Tile(object):
 
 class JPEG2000(object):
     """compression algorithm, jpeg2000"""
-    def __init__(self, file_path = "data/image.jpg", quant = True, lossy = True, tile_size = 300):
+    def __init__(self, file_path = "data/test.jpg", quant = True, lossy = True, tile_size = 300):
         """ 
         Initialize JPEG2000 algorithm 
         
@@ -87,7 +87,15 @@ class JPEG2000(object):
             for j in range(0, h, tile_size): # loop through the height (rows) of img, skipping tile_size pixels every time
                 # add the tile starting at pixel of row j and column i
                 tile = Tile(img[j:j + tile_size, i:i + tile_size])
+
                 self.tiles.append(tile)
+
+                if self.debug:
+                    cv2.imshow("tile" + str(counter), tile.tile_image)
+                    cv2.waitKey(0)
+                    cv2.imwrite("tile " + str(counter) + ".jpg", tile.tile_image)
+
+                    counter += 1
 
     def dc_level_shift(self, img):
         # dc level shifting
@@ -570,4 +578,4 @@ class JPEG2000(object):
 
 
 if __name__ == '__main__':
-    JPEG2000().run()
+    JPEG2000(tile_size = 900).run()
